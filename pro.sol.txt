@@ -1,0 +1,126 @@
+//SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+// Dutch Aution Contract
+// A dutch auction is an auction where the seller sets a price at the start of the auction and the 
+// price goes down over time.
+// When a buyer decides that the price is low enough and he buys then the auction ends.
+
+// A dutch aution works like an expensive fashion store that goes on sale imagine that a brand tshirt is 
+// selling for 300 dollars and you think the tshirt is overpriced and over time the tshirt will
+// go on sale. At first the tshirt goes on 10 percent discount. You still think its to expensive
+// next the tshirt goes on sale for 20 percent after some time its goes for 30 percent discount
+// you still think its expensive then it goes to 50 percent at this point you decide that it is good 
+// deal and you decide to buy the tshirt essentially this is how the dutch auction works. 
+// Initially the price is set high by the seller over time the price decreased when the buyer thinks
+// it is a good deal he decides to buy ending the auction.
+
+// State Variables 
+// Duration 
+//      --> Its type is uint.
+//      --> It tells us how long the auction will last.
+// nft Address
+//      --> Its type is address.
+//      --> Its the address of the NFT that we are putting for auction.
+// nft Id
+//      --> uint
+//      --> Its the id of the NFT that we are putting for auction.
+// Seller's Address
+//      --> Its type is address.
+//      --> Its the address of the seller who is putting NFT for sale.
+//      --> Or you can say its the address of the person who is the current owner of the nft.
+//  Starting Price
+//      --> Its type is uint.
+//      --> Its the price point at while sale starts.
+//  StartAt
+//      --> Its type is uint
+//      --> Its the time at which auction starts
+//  ExpiresAt
+//      --> Its type is uint.
+//      --> This can be time at which auction expires.
+//  Discount Rate
+//      --> Its type is uint.
+//      --> Its the rate at which the price of the NFT goes down.
+
+// Functions
+// 1. Buy
+// --> THis function is basically to buy the NFT at a discounted price.
+// --> THIs function will be payable.
+// --> THis funtion will take help from getPrice() function to fetch the price.
+
+// 2. GetPrice
+// --> It gives us the current price of the nft.
+// --> THis function calculates the discount and it subtracts the discount from the starting price.
+// --> To calculate dicount -- Discount Rate * timeElapsed.
+
+interface IERC721 {
+    function transferFrom(
+        address _from,
+        address _to,
+        uint _nftId
+    ) external ;
+}
+
+contract DutchAuction {
+    uint private constant DURATION = 7 days;
+
+    IERC721 public immutable nft;
+    uint public immutable nftId;
+
+    address public immutable seller;
+    uint public immutable startingPrice;
+    uint public immutable startAt;
+    uint public immutable expiresAt;
+    uint public immutable discountRate;
+
+    constructor(
+        uint _startingPrice,
+        uint _discountRate,
+        address _nft,
+        uint _nftId
+    ) {
+        seller = payable(msg.sender);
+        startingPrice = _startingPrice;
+        discountRate = _discountRate;
+        startAt = block.timestamp;
+        expiresAt = block.timestamp + DURATION;
+
+        require(
+            _startingPrice >= _discountRate * DURATION, "Starting Price > DISCOUNT"
+        );
+
+        nft = IERC721(_nft);
+        nftId = _nftId;
+    }
+
+// Functions
+
+// 2. GetPrice
+// --> It gives us the current price of the nft.
+// --> THis function calculates the discount and it subtracts the discount from the starting price.
+// --> To calculate dicount -- Discount Rate * timeElapsed.
+
+    function getPrice() public view returns(uint) {
+        uint timeElapsed = block.timestamp - startAt;
+        uint discount = discountRate * timeElapsed;
+        return startingPrice - discount;
+    }
+
+// 1. Buy
+// --> THis function is basically to buy the NFT at a discounted price.
+// --> THIs function will be payable.
+// --> THis funtion will take help from getPrice() function to fetch the price.
+
+    function toBuy() external payable {
+        require(block.timestamp < expiresAt, "Auction Expired!");
+        uint price = getPrice();
+        require(msg.value >= price, " Price is not right!");
+        nft.transferFrom(seller, msg.sender, nftId);
+        uint refund = msg.value - price;
+        if(refund > 0) {
+            payable(msg.sender).transfer(refund);
+        } 
+        selfdestruct(payable(seller));
+    }
+
+}
